@@ -1,0 +1,90 @@
+{
+  "name": "GP - Error Notifier",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "c2ee17c2-7e1f-4b09-b147-55beae462c16",
+      "name": "OnError"
+    },
+    {
+      "parameters": {
+        "sendTo": "you@example.com",
+        "subject": "=🚨 {{ $json.workflow.name }} failed",
+        "message": "=Workflow: {{ $json.workflow.name }}\nFailed at node: {{ $json.execution.lastNodeExecuted }}\nError: {{ $json.execution.error.message }}\nOpen the execution: {{ $json.execution.url }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        224,
+        0
+      ],
+      "id": "f2e836bd-c526-4b50-91d4-33d7b97bb056",
+      "name": "SendAlert",
+      "webhookId": "e794301e-17b7-4155-877b-1d32adea01e6",
+      "credentials": {
+        "gmailOAuth2": {
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## GP - Error Notifier\nError workflow for GP - Audit Orchestrator.\nIf the whole run crashes (e.g. Claude credits empty, Google login expired), it sends one email with: workflow name, the node that failed, the error message and a link to the execution.\n\nSingle failed pages don't trigger this: they are logged in the \"Failed\" tab instead.",
+        "height": 480,
+        "width": 624,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -128,
+        -256
+      ],
+      "typeVersion": 1,
+      "id": "e8f09b6c-f733-4102-acb7-3d321a300050",
+      "name": "Sticky Note"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "OnError": {
+      "main": [
+        [
+          {
+            "node": "SendAlert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "29a17710-1bb3-4c1f-b15a-50f857a416f3",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "nodeGroups": [],
+  "id": "RC2SIwxpsc1hs0wM",
+  "tags": [
+    {
+      "name": "gotphoto_casestudy",
+      "id": "gR6NkRaupeTm6sLK",
+      "updatedAt": "2026-10-18T12:12:23.864Z",
+      "createdAt": "2026-10-18T12:12:23.864Z"
+    }
+  ]
+}

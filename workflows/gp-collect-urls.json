@@ -1,0 +1,415 @@
+{
+  "name": "GP - Collect URLs",
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "sitemap_types",
+              "type": "array"
+            },
+            {
+              "name": "sample_plan",
+              "type": "object"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "08175786-ef06-4ec0-8bc8-aa5d1082c5fb",
+      "name": "FromOrchestrator"
+    },
+    {
+      "parameters": {
+        "url": "https://www.gotphoto.com/sitemap_index.xml",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        224,
+        0
+      ],
+      "id": "81795baa-9065-4182-96ab-99863d08d854",
+      "name": "GetSitemapIndex"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.xml",
+      "typeVersion": 1,
+      "position": [
+        448,
+        0
+      ],
+      "id": "c1c9c5b1-08b4-43a9-b82b-344b9bc87434",
+      "name": "ParseIndex"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "sitemapindex.sitemap",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        672,
+        0
+      ],
+      "id": "45b7c891-e284-4623-8cd8-73cca5c3da30",
+      "name": "SplitSitemaps"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "e5045e96-1b9c-4b9f-a1b0-f28b9ff2d440",
+              "leftValue": "={{ $('FromOrchestrator').first().json.sitemap_types.some(type => $json.loc.endsWith('/' + type + '-sitemap.xml')) }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.3,
+      "position": [
+        896,
+        0
+      ],
+      "id": "74ec66dc-bdb8-4fb9-8c6d-41bd59ce6853",
+      "name": "KeepChosenSitemaps"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.loc }}",
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 1
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1120,
+        0
+      ],
+      "id": "9dfa886e-d142-4c91-9e8b-5e469331ebe6",
+      "name": "GetChildSitemap"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.xml",
+      "typeVersion": 1,
+      "position": [
+        1344,
+        0
+      ],
+      "id": "86ba455d-ab51-44e0-aced-45d4c85461ff",
+      "name": "ParseChild"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "urlset.url",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        1568,
+        0
+      ],
+      "id": "d68d88c4-8f70-4a5f-8902-173a672c9301",
+      "name": "SplitUrls"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "ee165c24-94a1-48ba-9d4e-6ede9cb3b5b6",
+              "name": "url",
+              "value": "={{ $json.loc }}",
+              "type": "string"
+            },
+            {
+              "id": "cc532828-8bc9-4928-ac8e-13e67dd22686",
+              "name": "lastmod",
+              "value": "={{ $json.lastmod }}",
+              "type": "string"
+            },
+            {
+              "id": "effbcf0d-a58b-4225-b856-26aa733f4c16",
+              "name": "page_type",
+              "value": "={{ $('KeepChosenSitemaps').item.json.loc.split('/').pop().replace('-sitemap.xml', '') }}",
+              "type": "string"
+            },
+            {
+              "id": "a04db658-f678-4e87-b1db-546350e548e9",
+              "name": "image_count",
+              "value": "={{ [].concat($json['image:image'] || []).length }}",
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        1792,
+        0
+      ],
+      "id": "87985d13-4e92-4b9f-acc3-abe3440d4afd",
+      "name": "ShapePageRecord"
+    },
+    {
+      "parameters": {
+        "compare": "selectedFields",
+        "fieldsToCompare": "url",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.removeDuplicates",
+      "typeVersion": 2,
+      "position": [
+        2016,
+        0
+      ],
+      "id": "6deaa52a-43ee-486e-89eb-2708c8f97496",
+      "name": "DedupeUrls"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Picks which pages get audited\nconst plan = $('FromOrchestrator').first().json.sample_plan;\nconst pages = $input.all().map(item => item.json);\n\n// Legal pages are out of scope: nobody searches for them, and they are not meant to sell\nconst EXCLUDE = [\n  '/dpa-', '/gtc-', '/toms-and-sub-processors', '/data-privacy-policy',\n  '/recruiting-privacy-notice', '/privacy-data-handling', '/cookie-declaration'\n];\nconst inScope = pages.filter(page => !EXCLUDE.some(part => page.url.includes(part)));\n\nconst selected = [];\nfor (const [type, limit] of Object.entries(plan)) {\n  const newestFirst = inScope.filter(page => page.page_type === type)\n    .sort((a, b) => (b.lastmod || '').localeCompare(a.lastmod || ''));\n  selected.push(...newestFirst.slice(0, limit));\n}\nreturn selected.map(page => ({ json: page }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2240,
+        0
+      ],
+      "id": "e1ed5331-7d1e-42dc-beaf-8b8d361a7357",
+      "name": "SelectSample"
+    },
+    {
+      "parameters": {
+        "content": "## GP - Collect URLs\nBuilds the list of pages to audit from the website's sitemap.\n\n**In:** sitemap_types (which sitemaps to read), sample_plan (how many pages per type)\n**Out:** one item per page: url, page_type, lastmod, image_count\n\nLegal pages are left out on purpose (see SelectSample).",
+        "height": 256,
+        "width": 672,
+        "color": "#A45051"
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -96,
+        -576
+      ],
+      "typeVersion": 1,
+      "id": "4a7cad54-0def-405c-9894-c9988a59156c",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "content": "### 1. Read the sitemap index\nThe site has one main sitemap that lists 11 smaller sitemaps (pages, blog, guides, ...).\nThis step reads it and keeps only the types chosen in the settings.",
+        "height": 480,
+        "width": 1152,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -96,
+        -240
+      ],
+      "typeVersion": 1,
+      "id": "bade306c-296e-4d6f-bcd4-e1511190ed08",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "content": "### 2. Read each chosen sitemap\nDownloads each chosen sitemap (1 per second, to be polite to the server) and turns it into one item per page.",
+        "height": 480,
+        "width": 624,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        1088,
+        -240
+      ],
+      "typeVersion": 1,
+      "id": "96b538d2-851c-4274-ba77-38a67cdbd293",
+      "name": "Sticky Note2"
+    },
+    {
+      "parameters": {
+        "content": "### 3. Build the page list\n- Keeps only the fields we need and counts images per page.\n- Removes duplicate URLs.\n- **Leaves out legal pages** (DPA, terms, privacy, cookie declaration): nobody searches for them, and they are not meant to sell.\n- Picks pages per type, newest first. For the full audit the plan is set to 999 = all pages.",
+        "height": 480,
+        "width": 704,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        1744,
+        -240
+      ],
+      "typeVersion": 1,
+      "id": "641582db-e841-4e22-9de5-22720bee49da",
+      "name": "Sticky Note3"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "FromOrchestrator": {
+      "main": [
+        [
+          {
+            "node": "GetSitemapIndex",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GetSitemapIndex": {
+      "main": [
+        [
+          {
+            "node": "ParseIndex",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ParseIndex": {
+      "main": [
+        [
+          {
+            "node": "SplitSitemaps",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SplitSitemaps": {
+      "main": [
+        [
+          {
+            "node": "KeepChosenSitemaps",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "KeepChosenSitemaps": {
+      "main": [
+        [
+          {
+            "node": "GetChildSitemap",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GetChildSitemap": {
+      "main": [
+        [
+          {
+            "node": "ParseChild",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ParseChild": {
+      "main": [
+        [
+          {
+            "node": "SplitUrls",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SplitUrls": {
+      "main": [
+        [
+          {
+            "node": "ShapePageRecord",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ShapePageRecord": {
+      "main": [
+        [
+          {
+            "node": "DedupeUrls",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DedupeUrls": {
+      "main": [
+        [
+          {
+            "node": "SelectSample",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "bcb75225-a465-4c92-b251-b772a33b1ca5",
+  "meta": {},
+  "nodeGroups": [],
+  "id": "wgsxOarxyPIM913f",
+  "tags": [
+    {
+      "name": "gotphoto_casestudy",
+      "id": "gR6NkRaupeTm6sLK",
+      "updatedAt": "2026-10-18T12:12:23.864Z",
+      "createdAt": "2026-10-18T12:12:23.864Z"
+    }
+  ]
+}

@@ -1,0 +1,95 @@
+{
+  "name": "GP - Rule Checks",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "a2acfe68-4de4-424b-90e2-e6f2e3552039",
+      "name": "FromAuditPage"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Runs once for each page: apply deterministic SEO rules, no AI\nconst page = $json;\nconst findings = [];\nconst add = (rule, severity, label, message, value) =>\n  findings.push({ rule, severity, label, message, value });\n\n// 1. Title (Google shows about 60 characters)\nconst titleLength = page.title.length;\nif (!titleLength) add('title_missing', 'high', 'issue', 'Page has no title', 0);\nelse if (titleLength > 60) add('title_too_long', 'medium', 'issue', 'Title is cut off in search results', titleLength);\nelse if (titleLength < 30) add('title_too_short', 'low', 'issue', 'Title is too short to describe the page', titleLength);\n\n// 2. Meta description (Google shows about 160 characters)\nconst metaLength = page.meta_description.length;\nif (!metaLength) add('meta_missing', 'high', 'issue', 'No meta description, Google picks its own snippet', 0);\nelse if (metaLength > 160) add('meta_too_long', 'medium', 'issue', 'Meta description is cut off in search results', metaLength);\nelse if (metaLength < 70) add('meta_too_short', 'low', 'issue', 'Meta description is too short to persuade', metaLength);\n\n// 3. H1 (exactly one main heading)\nif (page.h1_count === 0) add('h1_missing', 'high', 'issue', 'Page has no H1 heading', 0);\nelse if (page.h1_count > 1) add('h1_multiple', 'medium', 'issue', 'Page has more than one H1 heading', page.h1_count);\n\n// 4. Canonical (should point to the page itself)\nconst normalize = (url) => (url || '').replace(/\\/$/, '');\nif (!page.canonical) add('canonical_missing', 'medium', 'issue', 'No canonical URL', 0);\nelse if (normalize(page.canonical) !== normalize(page.url)) add('canonical_other', 'low', 'question', 'Canonical points to a different URL', page.canonical);\n\n// 5. Structured data (JSON-LD)\nif (page.json_ld_count === 0) add('no_structured_data', 'medium', 'question', 'No JSON-LD structured data found', 0);\n\n// 6. Image alt text (empty alt can be correct for decorative images)\nif (page.img_missing_alt > 0) add('img_missing_alt', 'low', 'issue', 'Images without alt text', page.img_missing_alt);\n\nreturn { json: {\n  url: page.url,\n  page_type: page.page_type,\n  rule_findings: findings,\n  rule_finding_count: findings.length\n}};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        0
+      ],
+      "id": "5899445e-b3ce-4761-a279-75087bed9fb4",
+      "name": "ApplyRules"
+    },
+    {
+      "parameters": {
+        "content": "## GP - Rule Checks\nRuns 6 fixed SEO rules on one page. No AI: the same input always gives the same result.\n\n**In:** the page fields from GP - Audit Page (title, meta description, H1, canonical, ...)\n**Out:** rule_findings (list) + rule_finding_count\n\nCalled by GP - Audit Page.",
+        "height": 240,
+        "width": 656,
+        "color": "#A45051"
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -160,
+        -672
+      ],
+      "typeVersion": 1,
+      "id": "4bfbb97e-4bd7-4127-bf80-a320b717f4f5",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "content": "### The 6 rules\n1. **Title**: missing (high), over 60 chars (medium), under 30 chars (low)\n2. **Meta description**: missing (high), over 160 chars (medium), under 70 chars (low)\n3. **H1**: missing (high), more than one (medium)\n4. **Canonical**: missing (medium), points to another page (low, label \"question\")\n5. **Structured data**: no JSON-LD (medium, label \"question\")\n6. **Images**: images with empty alt text (low)\n\n**Label \"issue\"** = clearly something to fix.\n**Label \"question\"** = may be on purpose; needs someone from marketing to decide.\n\nKnown limit: rule 6 also counts decorative images, where an empty alt is correct.",
+        "height": 592,
+        "width": 656,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -160,
+        -416
+      ],
+      "typeVersion": 1,
+      "id": "d8c4321d-076c-478d-b18a-9655d1e9ab87",
+      "name": "Sticky Note1"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "FromAuditPage": {
+      "main": [
+        [
+          {
+            "node": "ApplyRules",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "7faed4a5-cb42-491e-9467-492a033cafc9",
+  "meta": {},
+  "nodeGroups": [],
+  "id": "GjWRUeLahwl6rHdG",
+  "tags": [
+    {
+      "name": "gotphoto_casestudy",
+      "id": "gR6NkRaupeTm6sLK",
+      "updatedAt": "2026-10-18T12:12:23.864Z",
+      "createdAt": "2026-10-18T12:12:23.864Z"
+    }
+  ]
+}

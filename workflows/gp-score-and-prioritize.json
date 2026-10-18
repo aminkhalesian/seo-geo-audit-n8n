@@ -1,0 +1,95 @@
+{
+  "name": "GP - Score & Prioritize",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -112,
+        512
+      ],
+      "id": "7154458c-88ed-46f0-8eaf-b6236e19210a",
+      "name": "FromOrchestrator"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Turns all page findings into one prioritized backlog\nconst pages = $input.all().map(item => item.json);\n\n// How important each page type is (1 to 3)\nconst PAGE_WEIGHT = { page: 3, guides: 2, 'success-stories': 2, blog: 1 };\n\n// For each finding type: how bad it is (1 to 3), how hard to fix (1 to 3), who fixes it\nconst RULES = {\n  title_missing:      { weight: 3, effort: 1, owner: 'content' },\n  title_too_long:     { weight: 2, effort: 1, owner: 'content' },\n  title_too_short:    { weight: 1, effort: 1, owner: 'content' },\n  meta_missing:       { weight: 3, effort: 1, owner: 'content' },\n  meta_too_long:      { weight: 2, effort: 1, owner: 'content' },\n  meta_too_short:     { weight: 1, effort: 1, owner: 'content' },\n  h1_missing:         { weight: 3, effort: 1, owner: 'content' },\n  h1_multiple:        { weight: 2, effort: 1, owner: 'content' },\n  canonical_missing:  { weight: 2, effort: 1, owner: 'developer' },\n  canonical_other:    { weight: 1, effort: 1, owner: 'developer' },\n  no_structured_data: { weight: 2, effort: 2, owner: 'developer' },\n  img_missing_alt:    { weight: 1, effort: 1, owner: 'content' },\n  answer_first:       { weight: 2, effort: 1, owner: 'content' },\n  clear_audience:     { weight: 2, effort: 1, owner: 'content' },\n  specific_facts:     { weight: 2, effort: 2, owner: 'content' },\n  answers_questions:  { weight: 3, effort: 2, owner: 'content' },\n  fits_purpose:       { weight: 2, effort: 3, owner: 'content' }\n};\nconst DEFAULT_RULE = { weight: 1, effort: 2, owner: 'content' };\n\n// Plain summary text for a Claude finding that shows up on many pages\nconst PATTERN_TEXT = {\n  answer_first:      \"don't open with a direct answer to what the page is about\",\n  specific_facts:    'lack concrete, quotable facts (numbers, prices, timelines)',\n  clear_audience:    \"don't clearly say who they are for\",\n  answers_questions: \"don't answer the questions a buyer would ask an AI\",\n  fits_purpose:      \"don't fully match the page's purpose\"\n};\n\n// 1. One row per finding, from both the rules and Claude\nconst rows = [];\nfor (const page of pages) {\n  const pageWeight = PAGE_WEIGHT[page.page_type] || 1;\n  for (const f of page.rule_findings || []) {\n    rows.push({ type: f.rule, source: 'rules', label: f.label, url: page.url, page_type: page.page_type,\n      pageWeight, detail: f.message, evidence: String(f.value), needs_review: false });\n  }\n  for (const g of page.geo_issues || []) {\n    rows.push({ type: g.criterion, source: 'claude', label: 'issue', url: page.url, page_type: page.page_type,\n      pageWeight, detail: g.suggestion, evidence: g.evidence, needs_review: !g.evidence_found });\n  }\n}\n\n// 2. Group: a finding on 3+ pages AND at least half of all pages is site-wide\n//    Rules  -> one \"template\" row (one fix in the site template)\n//    Claude -> one \"pattern\" summary row PLUS one row per page (each page needs its own text fix)\nconst totalPages = pages.length;\nconst byType = {};\nfor (const row of rows) (byType[row.type] = byType[row.type] || []).push(row);\n\nconst makeRow = (type, set, scope, detail, evidence) => {\n  const rule = RULES[type] || DEFAULT_RULE;\n  const first = set[0];\n  const impact = rule.weight * Math.max(...set.map(r => r.pageWeight));\n  const effort = rule.effort;\n  return {\n    finding: type,\n    source: first.source,\n    scope,\n    pages_affected: set.length,\n    example_url: first.url,\n    page_type: set.length > 1 ? 'several' : first.page_type,\n    label: first.label,\n    owner: rule.owner,\n    impact,\n    effort,\n    priority: Math.round(impact / effort * 10) / 10,\n    quadrant: impact >= 4 ? (effort <= 1 ? 'Quick Win' : 'Big Bet') : (effort <= 1 ? 'Fill-in' : 'Deprioritize'),\n    detail,\n    evidence,\n    needs_review: set.some(r => r.needs_review)\n  };\n};\n\nconst backlog = [];\nfor (const [type, group] of Object.entries(byType)) {\n  const siteWide = group.length >= 3 && group.length >= totalPages / 2;\n  const isClaude = group[0].source === 'claude';\n  const countText = `${group.length} of ${totalPages} pages`;\n\n  if (siteWide && !isClaude) {\n    backlog.push(makeRow(type, group, 'template', group[0].detail, countText));\n    continue;\n  }\n  if (siteWide && isClaude) {\n    const summary = `${countText} ${PATTERN_TEXT[type] || 'share this issue'}. Treat as a content guideline; see the page rows for each page's own fix.`;\n    backlog.push(makeRow(type, group, 'pattern', summary, countText));\n  }\n  for (const row of group) {\n    backlog.push(makeRow(type, [row], 'page', row.detail, row.evidence));\n  }\n}\n\n// 3. Highest priority first (a pattern row comes before its page rows)\nconst scopeOrder = { template: 0, pattern: 0, page: 1 };\nbacklog.sort((a, b) => b.priority - a.priority || scopeOrder[a.scope] - scopeOrder[b.scope] || b.pages_affected - a.pages_affected);\nreturn backlog.map((row, i) => ({ json: { rank: i + 1, ...row } }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        112,
+        512
+      ],
+      "id": "5d112159-f32b-40c9-83b1-234e48dd5694",
+      "name": "ScoreAndGroup"
+    },
+    {
+      "parameters": {
+        "content": "## GP - Score & Prioritize\nTurns all page findings into one ranked backlog.\n\n**In:** all audited pages at once (rule findings + Claude issues)\n**Out:** one row per backlog item, ranked: rank, finding, scope, owner, impact, effort, priority, quadrant, detail, evidence, needs_review\n\nCalled once per run by GP - Audit Orchestrator.",
+        "height": 240,
+        "width": 736,
+        "color": "#A45051"
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -256,
+        -320
+      ],
+      "typeVersion": 1,
+      "id": "4a65262c-46d1-4a62-b68b-b05284a1256c",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "content": "### How the ranking works\n**Impact** = how bad the finding is (1–3) × how important the page type is (page 3, guides 2, success stories 2, blog 1)\n**Effort** = how hard to fix (1–3)\n**Priority** = impact ÷ effort\n\n**Quadrant:**\n- Quick Win = high impact, low effort\n- Big Bet = high impact, more effort\n- Fill-in = low impact, low effort\n- Deprioritize = low impact, more effort\n\n**Grouping** (when a finding is on 3+ pages and at least half of all pages):\n- Rule finding → one **template** row (one fix in the site template fixes all pages)\n- Claude finding → one **pattern** row (content guideline) + one row per page (each page needs its own fix)\n\nThe weights are a first draft. To be agreed with marketing.",
+        "height": 720,
+        "width": 736,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -256,
+        -32
+      ],
+      "typeVersion": 1,
+      "id": "09150dd3-bd4d-45d0-8f8a-7f07d07a8e8e",
+      "name": "Sticky Note1"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "FromOrchestrator": {
+      "main": [
+        [
+          {
+            "node": "ScoreAndGroup",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "b3407b4d-03a8-45a7-a9f7-ecb29dfc1784",
+  "meta": {},
+  "nodeGroups": [],
+  "id": "hm15ITDQXHKk6mtI",
+  "tags": [
+    {
+      "name": "gotphoto_casestudy",
+      "id": "gR6NkRaupeTm6sLK",
+      "updatedAt": "2026-10-18T12:12:23.864Z",
+      "createdAt": "2026-10-18T12:12:23.864Z"
+    }
+  ]
+}

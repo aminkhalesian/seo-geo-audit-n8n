@@ -1,0 +1,446 @@
+{
+  "name": "GP - Audit Page",
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "url"
+            },
+            {
+              "name": "page_type"
+            },
+            {
+              "name": "image_count",
+              "type": "number"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        96
+      ],
+      "id": "94c1013e-9a75-4667-92fb-428f0672c783",
+      "name": "FromOrchestrator"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "n8n-seo-audit-casestudy"
+            }
+          ]
+        },
+        "options": {
+          "redirect": {
+            "redirect": {
+              "followRedirects": false
+            }
+          },
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "text",
+              "outputPropertyName": "html"
+            }
+          },
+          "timeout": 15000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        224,
+        96
+      ],
+      "id": "8e837897-48ec-4bf1-8e12-ea518a5c3d49",
+      "name": "FetchHtml",
+      "retryOnFail": true,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "d9acdabf-9eef-441f-a5ef-bea767c2e769",
+              "leftValue": "={{ $json.statusCode }}",
+              "rightValue": 200,
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        448,
+        96
+      ],
+      "id": "030a619f-a4ec-417a-97ee-f5ea182a3955",
+      "name": "IsOk"
+    },
+    {
+      "parameters": {
+        "operation": "extractHtmlContent",
+        "dataPropertyName": "html",
+        "extractionValues": {
+          "values": [
+            {
+              "key": "title",
+              "cssSelector": "title"
+            },
+            {
+              "key": "meta_description",
+              "cssSelector": "meta[name=\"description\"]",
+              "returnValue": "attribute",
+              "attribute": "content"
+            },
+            {
+              "key": "canonical",
+              "cssSelector": "link[rel=\"canonical\"]",
+              "returnValue": "attribute",
+              "attribute": "href"
+            },
+            {
+              "key": "lang",
+              "cssSelector": "html",
+              "returnValue": "attribute",
+              "attribute": "lang"
+            },
+            {
+              "key": "h1",
+              "cssSelector": "h1",
+              "returnArray": true
+            },
+            {
+              "key": "h2",
+              "cssSelector": "h2",
+              "returnArray": true
+            },
+            {
+              "key": "json_ld",
+              "cssSelector": "script[type=\"application/ld+json\"]",
+              "returnArray": true
+            },
+            {
+              "key": "img_alts",
+              "cssSelector": "img",
+              "returnValue": "attribute",
+              "attribute": "alt",
+              "returnArray": true
+            },
+            {
+              "key": "body_text",
+              "cssSelector": "body",
+              "skipSelectors": "script, style, nav, header, footer, noscript"
+            }
+          ]
+        },
+        "options": {
+          "trimValues": true,
+          "cleanUpText": true
+        }
+      },
+      "type": "n8n-nodes-base.html",
+      "typeVersion": 1.2,
+      "position": [
+        1040,
+        64
+      ],
+      "id": "63857f2c-0075-4393-b0ea-051d285ec4c4",
+      "name": "ExtractSeoFields"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Runs once for each page: clean the text and count what the rules will need\nconst page = $json;\nconst source = $('FromOrchestrator').first().json;\n\nconst cleanText = (page.body_text || '')\n  .replace(/\\[(https?:|data:)[^\\]]*\\]/g, ' ')  // remove [link] and [image] placeholders\n  .replace(/\\s+/g, ' ')                         // collapse repeated spaces and line breaks\n  .trim();\n\nconst alts = page.img_alts || [];\n\nreturn { json: {\n  url: source.url,\n  page_type: source.page_type,\n  title: page.title || '',\n  meta_description: page.meta_description || '',\n  canonical: page.canonical || '',\n  lang: page.lang || '',\n  h1: page.h1 || [],\n  h1_count: (page.h1 || []).length,\n  h2_count: (page.h2 || []).length,\n  json_ld_count: (page.json_ld || []).length,\n  img_total: alts.length,\n  img_missing_alt: alts.filter(alt => !alt || !alt.trim()).length,\n  word_count: cleanText ? cleanText.split(' ').length : 0,\n  content_text: cleanText.slice(0, 6000)\n}};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1248,
+        64
+      ],
+      "id": "be046488-7387-468b-8c38-e2e2615b0b32",
+      "name": "CleanAndCount"
+    },
+    {
+      "parameters": {
+        "errorMessage": "=Page fetch failed: {{ $('FromOrchestrator').first().json.url }} returned {{ $json.statusCode }}"
+      },
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [
+        672,
+        192
+      ],
+      "id": "04824b76-856d-41db-9415-b8afe9d6e9b7",
+      "name": "FailFetch"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "GjWRUeLahwl6rHdG",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/GjWRUeLahwl6rHdG",
+          "cachedResultName": "GP - Rule Checks"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        1744,
+        16
+      ],
+      "id": "ecf90d76-4713-455b-8312-e39b22b2ae4b",
+      "name": "RunRuleChecks"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "sVegE1BZ12oXbYzj",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/sVegE1BZ12oXbYzj",
+          "cachedResultName": "GP - Claude GEO Review"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        1744,
+        240
+      ],
+      "id": "ea3eb38c-97e5-4f1f-b0bf-e81d2daf266b",
+      "name": "RunGeoReview"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        2048,
+        128
+      ],
+      "id": "48437b86-5734-4e5c-8547-e701ac23cf41",
+      "name": "CombineFindings"
+    },
+    {
+      "parameters": {
+        "content": "## GP - Audit Page\nAudits **one page**. Called once per page by GP - Audit Orchestrator.\n\n**In:** url, page_type, image_count\n**Out:** one item with rule findings + Claude review for this page\n\nIf the page can't be loaded, this workflow stops with an error. The orchestrator then logs the page in the \"Failed\" tab.",
+        "height": 256,
+        "width": 528,
+        "color": "#A45051"
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -32,
+        -480
+      ],
+      "typeVersion": 1,
+      "id": "38946850-5609-4993-a8ff-7e7650e29662",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "content": "### 1. Fetch the page\n- Downloads the page HTML (retry 3x, timeout 15 s).\n- **Follow Redirects is off on purpose:** a redirecting URL returns 301 and is logged as failed. Otherwise findings would be filed under the wrong URL.\n- Only status 200 continues. Anything else stops here with a clear error message.\n",
+        "height": 480,
+        "width": 864,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -48,
+        -144
+      ],
+      "typeVersion": 1,
+      "id": "e18a00a8-c7e8-43c6-bfd1-f527a473a8df",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "content": "### 2. Extract SEO fields\nReads title, meta description, canonical, language, H1/H2, structured data (JSON-LD), image alt texts and the main text.\nHeader, footer and navigation are skipped. Text is cleaned and cut to 6,000 characters for Claude.",
+        "height": 480,
+        "width": 656,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        864,
+        -144
+      ],
+      "typeVersion": 1,
+      "id": "c6612d88-877c-49ae-9171-a50473aaf568",
+      "name": "Sticky Note2"
+    },
+    {
+      "parameters": {
+        "content": "### 3. Review the page\n- **Rule Checks:** 6 fixed rules (title, meta, H1, canonical, structured data, alt text). Same input = same result.\n- **Claude GEO Review:** judges how well the page answers questions an AI assistant would ask. Quotes are checked against the page.\n- **Combine:** merges both results into one item.",
+        "height": 656,
+        "width": 704,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        1568,
+        -240
+      ],
+      "typeVersion": 1,
+      "id": "595289e4-bf84-4276-a8ea-1ebc3059c329",
+      "name": "Sticky Note3"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "FromOrchestrator": {
+      "main": [
+        [
+          {
+            "node": "FetchHtml",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FetchHtml": {
+      "main": [
+        [
+          {
+            "node": "IsOk",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IsOk": {
+      "main": [
+        [
+          {
+            "node": "ExtractSeoFields",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "FailFetch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ExtractSeoFields": {
+      "main": [
+        [
+          {
+            "node": "CleanAndCount",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CleanAndCount": {
+      "main": [
+        [
+          {
+            "node": "RunRuleChecks",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "RunGeoReview",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RunRuleChecks": {
+      "main": [
+        [
+          {
+            "node": "CombineFindings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RunGeoReview": {
+      "main": [
+        [
+          {
+            "node": "CombineFindings",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "75b82480-3842-4ee9-ae33-dff0e8f69f24",
+  "meta": {},
+  "nodeGroups": [],
+  "id": "1sUDsejr693GTRU0",
+  "tags": [
+    {
+      "name": "gotphoto_casestudy",
+      "id": "gR6NkRaupeTm6sLK",
+      "updatedAt": "2026-10-18T12:12:23.864Z",
+      "createdAt": "2026-10-18T12:12:23.864Z"
+    }
+  ]
+}
