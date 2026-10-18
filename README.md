@@ -4,7 +4,7 @@ An n8n pipeline that audits a company website page by page and turns the results
 
 I built and tested it on the public website of GotPhoto (gotphoto.com), a software company for volume photographers. This repository contains the tool, not the site-specific results.
 
-**Case study:** _link to the Notion case study_
+**Case study:** [_link to the Notion case study_](https://aminkhalesianprojects.notion.site/Case-Study-SEO-GEO-Audit-Pipeline-in-n8n-with-Claude-3fd5adec5ffb81189b1ed3f74dd9884d)
 
 ![Architecture](docs/gotphoto-audit-architecture.png)
 
