@@ -7,6 +7,13 @@ I built and tested it on the public website of GotPhoto (gotphoto.com), a softwa
 **Case study:** [_link to the Notion case study_](https://aminkhalesianprojects.notion.site/Case-Study-SEO-GEO-Audit-Pipeline-in-n8n-with-Claude-3fd5adec5ffb81189b1ed3f74dd9884d)
 
 ![Architecture](docs/gotphoto-audit-architecture.png)
+## Sample output
+
+What the marketing team gets after a run (anonymised: page URLs replaced, Claude's suggestions and page quotes hidden).
+
+![Backlog sample](docs/sample-backlog.png)
+
+![Summary email sample](docs/sample-email.png)
 
 ## What it does
 
